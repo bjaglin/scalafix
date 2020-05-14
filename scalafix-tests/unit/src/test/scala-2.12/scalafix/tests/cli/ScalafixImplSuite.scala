@@ -78,7 +78,7 @@ class ScalafixImplSuite extends FunSuite with DiffAssertions {
     val isRewrite = rules.filter(_.isRewrite)
     assert(isRewrite.nonEmpty)
     val isExperimental = rules.filter(_.isExperimental)
-    assert(isExperimental.isEmpty)
+    assert(isExperimental.nonEmpty) // OrganizeImports
   }
 
   test("error") {

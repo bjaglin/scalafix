@@ -180,7 +180,8 @@ lazy val unit = project
       jgit,
       semanticdbPluginLibrary,
       scalatest,
-      "org.scalameta" %% "testkit" % scalametaV
+      "org.scalameta" %% "testkit" % scalametaV,
+      "com.github.liancheng" %% "organize-imports" % "0.3.0" // later versions have a workaround
     ),
     compileInputs.in(Compile, compile) := {
       compileInputs

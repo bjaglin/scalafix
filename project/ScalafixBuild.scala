@@ -72,7 +72,14 @@ object ScalafixBuild extends AutoPlugin with GhpagesKeys {
     )
 
     lazy val testsInputOutputSetting = Seq(
-      libraryDependencies ++= testsDeps
+      libraryDependencies ++= testsDeps ++ Seq(
+        // Library built against another in provided. If the latter is not in the classpath, the ExternalSymbol lookup
+        // triggered by SemanticDocument.info() throws a MissingSymbolException
+        // https://github.com/softwaremill/macwire/blob/release-2.3.3/build.sbt#L84
+        // https://github.com/softwaremill/macwire/blob/release-2.3.3/macros/src/main/scala/com/softwaremill/macwire/MacwireMacros.scala#L114
+        // https://github.com/softwaremill/macwire/blob/release-2.3.3/util/src/main/scala/com/softwaremill/macwire/Wired.scala#L10
+        "com.softwaremill.macwire" %% "macros" % "2.3.4"
+      )
     )
 
     lazy val semanticdbSettings = Seq(
