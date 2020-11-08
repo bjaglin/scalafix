@@ -237,7 +237,10 @@ class ScalafixGlobal(
             // `Type.toString()` doesn't print the "scala." prefix in
             // "scala.Seq[T]" even when it's needed.
             loop(ThisType(sym.owner), name)
-          } else if (sym.hasPackageFlag || sym.isPackageObjectOrClass) {
+          } else if (sym.isObject) {
+            // When Type is nested in an Outer object, prefer Outer.Type over Type
+            SingleType(loop(pre, Some(ShortName(sym))), sym)
+          } else {
             // Use the prefix rather than the real owner to maximize the
             // chances of shortening the reference: when `name` is directly
             // nested in a non-statically addressable type (class or trait),
@@ -250,15 +253,15 @@ class ScalafixGlobal(
               .map(_.symbol.cloneSymbol(sym))
               .map(ShortName.apply)
             if (history.tryShortenName(dotSyntaxFriendlyName)) NoPrefix
-            else tpe
-          } else {
-            if (history.isSymbolInScope(sym, pre)) SingleType(NoPrefix, sym)
             else {
-              pre match {
-                case ThisType(psym) if history.isSymbolInScope(psym, pre) =>
-                  SingleType(NoPrefix, sym)
-                case _ =>
-                  SingleType(loop(pre, Some(ShortName(sym))), sym)
+              if (history.isSymbolInScope(sym, pre)) SingleType(NoPrefix, sym)
+              else {
+                pre match {
+                  case ThisType(psym) if history.isSymbolInScope(psym, pre) =>
+                    SingleType(NoPrefix, sym)
+                  case _ =>
+                    SingleType(loop(pre, Some(ShortName(sym))), sym)
+                }
               }
             }
           }
@@ -521,6 +524,9 @@ class ScalafixGlobal(
 
     def isJavaModule: Boolean =
       sym.isJava && sym.isModule
+
+    def isObject: Boolean =
+      sym.isModule && !sym.hasPackageFlag && !sym.isPackageObject
 
     def hasTypeParams: Boolean =
       sym.typeParams.nonEmpty ||

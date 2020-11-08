@@ -1,6 +1,7 @@
 package test.explicitResultTypes
 
 import test.explicitResultTypes.PackageObject.{ Foo, Nested }
+import test.explicitResultTypes.pkg.Obj
 // like https://github.com/tpolecat/doobie/blob/c2e044/modules/core/src/main/scala/doobie/free/Aliases.scala#L10
 trait Trait {
   class Foo // like https://github.com/tpolecat/doobie/blob/c2e0445/modules/core/src/main/scala/doobie/free/Aliases.scala#L14
@@ -17,7 +18,12 @@ class Clazz {
 package object PackageObject extends Trait
 
 package pkg {
-  object Obj extends Clazz
+  abstract class AbstractClazz {
+    trait Baz
+  }
+  object Obj extends Clazz {
+    object NestedObj extends AbstractClazz
+  }
 }
 
 trait PathDependentTypes {
@@ -29,5 +35,8 @@ trait PathDependentTypes {
   val barRef: Nested.Bar = bar
 
   def qux: pkg.Obj.Qux = ???
-  val quxRef: test.explicitResultTypes.pkg.Obj.Qux = qux
+  val quxRef: Obj.Qux = qux
+
+  def baz: pkg.Obj.NestedObj.Baz = ???
+  val bazRef: Obj.NestedObj.Baz = baz
 }
