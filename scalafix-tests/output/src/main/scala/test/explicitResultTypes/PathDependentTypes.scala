@@ -17,6 +17,8 @@ class Clazz {
 // like https://github.com/tpolecat/doobie/blob/c2e0445/modules/core/src/main/scala/doobie/hi/package.scala#L25
 package object PackageObject extends Trait
 
+package object PackageObject2 extends Trait
+
 package pkg {
   abstract class AbstractClazz {
     trait Baz
@@ -30,6 +32,9 @@ trait PathDependentTypes {
   // like https://github.com/tpolecat/doobie/blob/c2e0445/modules/core/src/main/scala/doobie/util/query.scala#L163
   def foo: PackageObject.Foo = ???
   val fooRef: Foo = foo
+
+  def foo2: PackageObject2.Foo = ???
+  val foo2Ref: PackageObject2.Foo = foo2
 
   def bar: PackageObject.Nested.Bar = ???
   val barRef: Nested.Bar = bar
