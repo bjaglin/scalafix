@@ -96,7 +96,8 @@ class OrganizeImports(
 
   private def fixWithImplicitDialect(implicit doc: SemanticDocument): Patch = {
     unusedImporteePositions ++= doc.diagnostics.collect {
-      case d if d.message == "Unused import" => d.position
+      // Scala2 says "Unused import" while Scala3 says "unused import"
+      case d if d.message.toLowerCase == "unused import" => d.position
     }
 
     val (globalImports, localImports) = collectImports(doc.tree)
@@ -112,8 +113,18 @@ class OrganizeImports(
     diagnostics.map(Patch.lint).asPatch + globalImportsPatch + localImportsPatch
   }
 
-  private def isUnused(importee: Importee): Boolean =
-    unusedImporteePositions contains positionOf(importee)
+  private def isUnused(importee: Importee): Boolean = {
+    // positionOf returns the position of `bar` for `import foo.{bar => baz}`
+    // this position matches with the diagnostics from Scala2,
+    // but Scala3 diagnostics has a position for `bar => baz`, which doesn't match with
+    // the return value of `positionOf`.
+    // We could adjust the behavior of `positionOf` based on Scala version,
+    // but this implementation just checking the unusedImporteePosition includes the importee pos, for simplicity.
+    val pos = positionOf(importee)
+    unusedImporteePositions.exists(unused =>
+      unused.start <= pos.start && pos.end <= unused.end
+    )
+  }
 
   private def organizeGlobalImports(
       imports: Seq[Import]
@@ -839,7 +850,9 @@ object OrganizeImports {
       scalacOptions: List[String],
       scalaVersion: String
   ): Configured[Rule] = {
-    val hasCompilerSupport = scalaVersion.startsWith("2")
+    val hasCompilerSupport =
+      Seq("3.0", "3.1", "3.2", "3.3")
+        .forall(v => !scalaVersion.startsWith(v))
 
     val hasWarnUnused = hasCompilerSupport && {
       val warnUnusedPrefix = Set("-Wunused", "-Ywarn-unused")
@@ -887,17 +900,17 @@ object OrganizeImports {
       )
     else if (hasCompilerSupport)
       Configured.error(
-        "The Scala compiler option \"-Ywarn-unused\" is required to use OrganizeImports with"
+        "A Scala compiler option is required to use OrganizeImports with"
           + " \"OrganizeImports.removeUnused\" set to true. To fix this problem, update your"
-          + " build to use at least one Scala compiler option like -Ywarn-unused-import (2.11"
-          + " only), -Ywarn-unused, -Xlint:unused (2.12.2 or above) or -Wunused (2.13 only)."
+          + " build to add `-Ywarn-unused` (2.12), `-Wunused:imports` (2.13), or"
+          + " `-Wunused:import` (3.4+)."
       )
     else
       Configured.error(
-        "\"OrganizeImports.removeUnused\" is not supported on Scala 3 as the compiler is"
-          + " not providing enough information. Run the rule with"
-          + " \"OrganizeImports.removeUnused\" set to false to organize imports while keeping"
-          + " potentially unused imports."
+        "\"OrganizeImports.removeUnused\"" + s"is not supported on $scalaVersion as the compiler is"
+          + " not providing enough information. Please upgrade the Scala compiler to 3.4.0 or greater."
+          + " Otherwise, run the rule with \"OrganizeImports.removeUnused\" set to false"
+          + " to organize imports while keeping potentially unused imports."
       )
   }
 
