@@ -180,7 +180,7 @@ lazy val shared = projectMatrix
     coverageEnabled := false
   )
   .defaultAxes(VirtualAxis.jvm)
-  .jvmPlatformFull(buildWithTargetVersions.map(_._2))
+  .jvmPlatformFull(buildScalaVersions)
   .disablePlugins(ScalafixPlugin)
 
 lazy val input = projectMatrix
@@ -196,7 +196,17 @@ lazy val input = projectMatrix
     coverageEnabled := false
   )
   .defaultAxes(VirtualAxis.jvm)
-  .jvmPlatformFull(buildWithTargetVersions.map(_._2))
+  .jvmPlatformFull(buildScalaVersions ++ extraInputScalaVersions)
+  .jvmPlatformFull(
+    scalaVersions = buildScalaVersions.filter(_.startsWith("2")),
+    axisValues = Seq(Xsource3Axis),
+    settings = Seq(
+      scalacOptions += "-Xsource:3",
+      Compile / unmanagedSourceDirectories ~= {
+        _.map { dir => file(s"${dir.getAbsolutePath}-xsource3") }
+      }
+    )
+  )
   .disablePlugins(ScalafixPlugin)
   .dependsOn(shared)
 
@@ -209,7 +219,7 @@ lazy val output = projectMatrix
     coverageEnabled := false
   )
   .defaultAxes(VirtualAxis.jvm)
-  .jvmPlatform(buildScalaVersions)
+  .jvmPlatformFull(buildScalaVersions)
   .disablePlugins(ScalafixPlugin)
   .dependsOn(shared)
 
@@ -354,7 +364,22 @@ lazy val expect = projectMatrix
     }
   )
   .defaultAxes(VirtualAxis.jvm)
-  .jvmPlatformWithTargets(buildWithTargetVersions)
+  .jvmPlatformAgainstTargets {
+    def scala2xTargets(scalaVersion: String): Seq[(String, TargetAxis)] = {
+      val binary = CrossVersion.binaryScalaVersion(scalaVersion)
+      val targets =
+        Seq(
+          TargetAxis(scalaVersion),
+          TargetAxis(scalaVersion, xsource3 = true),
+          TargetAxis(scala3)
+        ) ++ extraInputScalaVersions
+          .filter(_.startsWith(binary))
+          .map(TargetAxis(_))
+      targets.map((scalaVersion, _))
+    }
+    Seq(scala212, scala213)
+      .flatMap(scala2xTargets) :+ (scala3, TargetAxis(scala3))
+  }
   .dependsOn(integration)
 
 lazy val docs = projectMatrix

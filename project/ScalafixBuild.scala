@@ -14,6 +14,7 @@ import scalafix.sbt.ScalafixPlugin.autoImport._
 import com.github.sbt.sbtghpages.GhpagesKeys
 import sbt.librarymanagement.ivy.IvyDependencyResolution
 import sbt.plugins.IvyPlugin
+import scala.util.Try
 
 object ScalafixBuild extends AutoPlugin with GhpagesKeys {
   override def trigger = allRequirements
@@ -29,6 +30,21 @@ object ScalafixBuild extends AutoPlugin with GhpagesKeys {
       publish / skip := true
     )
     lazy val supportedScalaVersions = List(scala213, scala212)
+    lazy val buildScalaVersions = Seq(scala212, scala213, scala3)
+    lazy val extraInputScalaVersions =
+      Seq(scala212, scala213).flatMap { sv =>
+        def previousVersions(scalaVersion: String): Seq[String] = {
+          val split = scalaVersion.split('.')
+          val binaryVersion = split.take(2).mkString(".")
+          val compilerVersion = Try(split.last.toInt).toOption
+          val previousPatchVersions =
+            compilerVersion
+              .map(version => List.range(version - 2, version).filter(_ >= 0))
+              .getOrElse(Nil)
+          previousPatchVersions.map(v => s"$binaryVersion.$v")
+        }
+        previousVersions(sv)
+      }
     lazy val publishLocalTransitive =
       taskKey[Unit]("Run publishLocal on this project and its dependencies")
     lazy val isFullCrossVersion = Seq(
@@ -131,7 +147,7 @@ object ScalafixBuild extends AutoPlugin with GhpagesKeys {
     ): Def.Initialize[T] =
       Def.settingDyn {
         val sv = scalaVersion.value
-        val project = matrix.jvm(sv)
+        val project = matrix.finder(FullScalaVersionAxis(sv)).get.head
         Def.setting((project / key).value)
       }
 
@@ -145,7 +161,7 @@ object ScalafixBuild extends AutoPlugin with GhpagesKeys {
     ): Def.Initialize[Task[T]] =
       Def.taskDyn {
         val sv = scalaVersion.value
-        val project = matrix.jvm(sv)
+        val project = matrix.finder(FullScalaVersionAxis(sv)).get.head
         Def.task((project / key).value)
       }
   }
