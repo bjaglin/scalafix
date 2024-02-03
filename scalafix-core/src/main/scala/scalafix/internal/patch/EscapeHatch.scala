@@ -1,7 +1,6 @@
 package scalafix.internal.patch
 
 import scala.annotation.tailrec
-import scala.collection.compat._
 import scala.collection.immutable.TreeMap
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
