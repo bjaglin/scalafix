@@ -38,8 +38,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: coursier/setup-action@v1
-      - run: ./bin/scalafmt --test
-      - run: sbt "dogfoodScalafixInterfaces; scalafixAll --check"
+      - run: cs install metap
+      - run: sbt "dogfoodScalafixInterfaces; scalafixAll --check" || metap ./scalafix-tests/integration/target/jvm-2.13/meta/META-INF/semanticdb/scalafix-tests/integration/src/main/scala/scalafix/test/cli/Rules.scala.semanticdb
   mima:
     name: Version Policy
     runs-on: ubuntu-latest
