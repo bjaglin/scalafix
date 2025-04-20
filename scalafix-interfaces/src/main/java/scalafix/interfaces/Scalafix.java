@@ -3,6 +3,8 @@ package scalafix.interfaces;
 import coursierapi.Repository;
 import scalafix.internal.interfaces.ScalafixCoursier;
 import scalafix.internal.interfaces.ScalafixInterfacesClassloader;
+import scalafix.internal.interfaces.ScalafixProperties;
+import static scalafix.internal.interfaces.ScalafixProperties.PROPERTIES_PATH;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -136,59 +138,96 @@ public interface Scalafix {
      */
     static Scalafix fetchAndClassloadInstance(String requestedScalaVersion, List<Repository> repositories)
             throws ScalafixException {
-
-        String requestedScalaMajorMinorOrMajorVersion =
-            requestedScalaVersion.replaceAll("^(\\d+\\.\\d+).*", "$1");
-
-        String scalaVersionKey;
-        if (requestedScalaMajorMinorOrMajorVersion.equals("2.12")) {
-            scalaVersionKey = "scala212";
-        } else if (requestedScalaMajorMinorOrMajorVersion.equals("2.13") ||
-            requestedScalaMajorMinorOrMajorVersion.equals("2")) {
-            scalaVersionKey = "scala213";
-        } else if (requestedScalaMajorMinorOrMajorVersion.equals("3.0") ||
-            requestedScalaMajorMinorOrMajorVersion.equals("3.1") ||
-            requestedScalaMajorMinorOrMajorVersion.equals("3.2") ||
-            requestedScalaMajorMinorOrMajorVersion.equals("3.3")) {
-            scalaVersionKey = "scala33";
-        } else if (requestedScalaMajorMinorOrMajorVersion.equals("3.5")) {
-            scalaVersionKey = "scala35";
-        } else if (requestedScalaMajorMinorOrMajorVersion.equals("3.6")) {
-            scalaVersionKey = "scala36";
-        } else if (requestedScalaMajorMinorOrMajorVersion.startsWith("3")) {
-            scalaVersionKey = "scala3Next";
-        } else {
-            throw new IllegalArgumentException("Unsupported scala version " + requestedScalaVersion);
-        }
-
-        Properties properties = new Properties();
-        String propertiesPath = "scalafix-interfaces.properties";
         try {
-            InputStream stream = Scalafix.class.getClassLoader().getResourceAsStream(propertiesPath);
+            Properties properties = new Properties();
+            InputStream stream = Scalafix.class.getClassLoader().getResourceAsStream(PROPERTIES_PATH);
             properties.load(stream);
+
+            ScalafixProperties scalafixProperties = new ScalafixProperties(properties);
+            String scalafixVersion = scalafixProperties.scalafixVersion();
+            String scalaVersion = scalafixProperties.fullScalaVersion(requestedScalaVersion);
+
+            List<URL> jars = ScalafixCoursier.scalafixCliJars(repositories, scalafixVersion, scalaVersion);
+            ClassLoader parent = new ScalafixInterfacesClassloader(Scalafix.class.getClassLoader());
+            return classloadInstance(new URLClassLoader(jars.stream().toArray(URL[]::new), parent));
         } catch (Exception e) {
             System.err.println(
-                "Failed to load '" + propertiesPath +  "' from local artifact, " +
+                "Failed to load '" + PROPERTIES_PATH +  "' from local artifact, " +
                 "falling back to fetching the latest scalafix version...");
 
+            String latestVersion;
             try {
-                List<URL> jars = ScalafixCoursier.latestScalafixPropertiesJars(repositories);
-                URLClassLoader classLoader =
-                    new URLClassLoader(jars.stream().toArray(URL[]::new), null);
-                
-                InputStream stream = classLoader.getResourceAsStream(propertiesPath);
-                properties.load(stream);
+                latestVersion = ScalafixCoursier.latestScalafixProperties(repositories);
             } catch (Exception ee) {
-                throw new ScalafixException(
-                    "Failed to load '" + propertiesPath + "' from local & remote artifacts",
-                    ee);
-            }
+                throw new ScalafixException( "Failed to lookup latest scalafix version", ee);
+            }   
+            return fetchAndClassloadInstance(latestVersion, requestedScalaVersion, repositories);
+        }
+    }
+
+    /**
+     * Fetch JARs containing an implementation of {@link Scalafix} using Coursier and classload an instance of it via
+     * runtime reflection.
+     * <p>
+     * The custom classloader optionally provided with {@link ScalafixArguments#withToolClasspath} to compile and
+     * classload external rules must have the classloader of the returned instance as ancestor to share a common
+     * loaded instance of `scalafix-core`, and therefore have been compiled against the requested Scala version.
+     *
+     * @param scalafixVersion    Fetch a specific, implementation of {@link Scalafix}. Must be binary-compatible.
+     * @param requestedScalaVersion A full Scala version (i.e. "3.3.4") or a major.minor one (i.e. "3.3") to infer
+     *                              the major.minor Scala version that should be available in the classloader of the
+     *                              returned instance. To be able to run advanced semantic rules using the Scala
+     *                              Presentation Compiler such as ExplicitResultTypes, this must be source-compatible
+     *                              with the version that the target classpath is built with, as provided with
+     *                              {@link ScalafixArguments#withScalaVersion}.
+     * @return An implementation of the {@link Scalafix} interface.
+     * @throws ScalafixException in case of errors during artifact resolution/fetching.
+     */
+    static Scalafix fetchAndClassloadInstance(String scalafixVersion,  String requestedScalaVersion )
+            throws ScalafixException {
+        return fetchAndClassloadInstance(scalafixVersion, requestedScalaVersion, Repository.defaults());
+    }
+
+    /**
+     * Fetch JARs containing an implementation of {@link Scalafix} from the provided repositories using Coursier and
+     * classload an instance of it via runtime reflection.
+     * <p>
+     * The custom classloader optionally provided with {@link ScalafixArguments#withToolClasspath} to compile and
+     * classload external rules must have the classloader of the returned instance as ancestor to share a common
+     * loaded instance of `scalafix-core`, and therefore have been compiled against the requested Scala version.
+     *
+     * @param scalafixVersion    Fetch a specific, implementation of {@link Scalafix}. Must be binary-compatible.
+     * @param requestedScalaVersion A full Scala version (i.e. "3.3.4") or a major.minor one (i.e. "3.3") to infer
+     *                              the major.minor Scala version that should be available in the classloader of the
+     *                              returned instance. To be able to run advanced semantic rules using the Scala
+     *                              Presentation Compiler such as ExplicitResultTypes, this must be source-compatible
+     *                              with the version that the target classpath is built with, as provided with
+     *                              {@link ScalafixArguments#withScalaVersion}.
+     * @param repositories       Maven/Ivy repositories to fetch the JARs from.
+     * @return An implementation of the {@link Scalafix} interface.
+     * @throws ScalafixException in case of errors during artifact resolution/fetching.
+     */
+    static Scalafix fetchAndClassloadInstance(
+        String scalafixVersion,
+        String requestedScalaVersion,
+        List<Repository> repositories
+    ) throws ScalafixException {
+        Properties properties = new Properties();
+        try {
+            List<URL> jars = ScalafixCoursier.scalafixPropertiesJars(repositories, scalafixVersion);
+            URLClassLoader classLoader =
+                new URLClassLoader(jars.stream().toArray(URL[]::new), null);
+            
+            InputStream stream = classLoader.getResourceAsStream(PROPERTIES_PATH);
+            properties.load(stream);
+        } catch (Exception e) {
+            throw new ScalafixException(
+                "Failed to fetch '" + PROPERTIES_PATH + "' for scalafix version " + scalafixVersion,
+                e);
         }
 
-        String scalafixVersion = properties.getProperty("scalafixVersion");
-        String scalaVersion = properties.getProperty(scalaVersionKey);
-        if (scalafixVersion == null || scalaVersion == null)
-            throw new ScalafixException("Failed to lookup versions from '" + propertiesPath + "'");
+        ScalafixProperties scalafixProperties = new ScalafixProperties(properties);
+        String scalaVersion = scalafixProperties.fullScalaVersion(requestedScalaVersion);
 
         List<URL> jars = ScalafixCoursier.scalafixCliJars(repositories, scalafixVersion, scalaVersion);
         ClassLoader parent = new ScalafixInterfacesClassloader(Scalafix.class.getClassLoader());

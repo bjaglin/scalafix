@@ -145,6 +145,12 @@ class ScalafixSuite extends AnyFunSuite {
     assert(scalafixAPI.scalaVersion() == Versions.scala3Next)
   }
 
+  test("classload a specific scalafix version") {
+    val v = "0.14.2+48-9b6e03ac-SNAPSHOT" // no stable yet
+    val scalafixAPI = Scalafix.fetchAndClassloadInstance(v, "3", repositories)
+    assert(scalafixAPI.scalafixVersion() == v)
+  }
+
   test("invalid class loader") {
     val cl = new URLClassLoader(Array(), null)
     val ex = intercept[ScalafixException] {
