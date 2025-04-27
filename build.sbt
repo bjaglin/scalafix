@@ -60,13 +60,36 @@ lazy val interfaces = project
     (Compile / doc / javacOptions) := List("-Xdoclint:none"),
     (Compile / javaHome) := inferJavaHome(),
     (Compile / doc / javaHome) := inferJavaHome(),
-    libraryDependencies += coursierInterfaces,
     moduleName := "scalafix-interfaces",
     crossPaths := false,
     autoScalaLibrary := false
   )
   .disablePlugins(ScalafixPlugin)
+  //TODO: remove once deprecated loading mechanism is removed
+  .settings(libraryDependencies += coursierInterfaces)
   .dependsOn(properties)
+
+lazy val loader = project
+  .in(file("scalafix-loader"))
+  .settings(
+    (Compile / javacOptions) ++= List(
+      "-Xlint:all",
+      "-Werror"
+    ),
+    (Compile / doc / javacOptions) := List("-Xdoclint:none"),
+    (Compile / javaHome) := inferJavaHome(),
+    (Compile / doc / javaHome) := inferJavaHome(),
+    libraryDependencies ++= Seq(
+      coursierInterfaces,
+      typesafeConfig
+    ),
+    moduleName := "scalafix-loader",
+    mimaPreviousArtifacts := Set.empty, //TODO: remove after release
+    crossPaths := false,
+    autoScalaLibrary := false
+  )
+  .disablePlugins(ScalafixPlugin)
+  .dependsOn(interfaces, properties)
 
 // Scala 3 macros vendored separately (i.e. without runtime classes), to
 // shadow Scala 2.13 macros in the Scala 3 compiler classpath, while producing

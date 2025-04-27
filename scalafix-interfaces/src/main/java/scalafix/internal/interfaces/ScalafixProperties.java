@@ -1,14 +1,25 @@
 package scalafix.internal.interfaces;
 
+import java.io.InputStream;
 import java.util.Properties;
+
+import scalafix.interfaces.ScalafixException;
 
 public class ScalafixProperties {
 
-    public static final String PROPERTIES_PATH = "scalafix-interfaces.properties";
+    private static final String PROPERTIES_PATH = "scalafix-interfaces.properties";
 
     private final Properties properties;
     
-    public ScalafixProperties(Properties properties) {
+    public ScalafixProperties(ClassLoader classLoader) throws ScalafixException {
+        Properties properties = new Properties();
+        InputStream stream = classLoader.getResourceAsStream(PROPERTIES_PATH);
+        try {
+            properties.load(stream);
+        } catch (Exception e) {
+            throw new ScalafixException("Failed to load '" + PROPERTIES_PATH + "' to lookup versions", e);
+        }
+
         this.properties = properties;
     }
 

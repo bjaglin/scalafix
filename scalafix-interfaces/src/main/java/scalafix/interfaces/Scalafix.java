@@ -1,10 +1,6 @@
 package scalafix.interfaces;
 
 import coursierapi.Repository;
-import scalafix.internal.interfaces.ScalafixCoursier;
-import scalafix.internal.interfaces.ScalafixInterfacesClassloader;
-import scalafix.internal.interfaces.ScalafixProperties;
-import static scalafix.internal.interfaces.ScalafixProperties.PROPERTIES_PATH;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -15,218 +11,66 @@ import java.net.URLClassLoader;
 import java.util.List;
 import java.util.Properties;
 
-/**
- * Public API for reflectively invoking Scalafix from a build tool or IDE integration.
- * <p>
- * To obtain an instance of Scalafix, use one of the static factory methods.
- *
- * @implNote This interface is not intended to be extended, the only implementation of this interface
- * should live in the Scalafix repository.
- */
+import scalafix.internal.interfaces.ScalafixCoursier;
+import scalafix.internal.interfaces.ScalafixInterfacesClassloader;
+import scalafix.internal.interfaces.ScalafixProperties;
+
+@Deprecated
 public interface Scalafix {
 
-    /**
-     * @return Construct a new instance of {@link ScalafixArguments}.
-     */
+    @Deprecated
     ScalafixArguments newArguments();
 
-    /**
-     * Get --help message for running the Scalafix command-line interface.
-     *
-     * @param screenWidth The width of the screen, used for wrapping long sentences
-     *                    into multiple lines.
-     * @return The help message as a string.
-     */
+    @Deprecated
     String mainHelp(int screenWidth);
 
-    /**
-     * The exact Scala versions used
-     */
+    @Deprecated
     String scalaVersion();
 
-    /**
-     * The release version of the current Scalafix API instance.
-     */
+    @Deprecated
     String scalafixVersion();
 
-    /**
-     * The recommended Scalameta version to match the current Scalafix API instance.
-     */
+    @Deprecated
     String scalametaVersion();
 
-    /**
-     * The exact Scala versions that are supported
-     */
+    @Deprecated
     String[] supportedScalaVersions();
 
     @Deprecated
     String scala211();
 
-    /**
-     * The Scala 2.12 version in {@link #supportedScalaVersions()}
-     */
+    @Deprecated
     String scala212();
 
-    /**
-     * The Scala 2.13 version in {@link #supportedScalaVersions()}
-     */
+    @Deprecated
     String scala213();
 
-    /**
-     * The Scala 3.3 version in {@link #supportedScalaVersions()}
-     */
+    @Deprecated
     String scala33();
 
-    /**
-     * The Scala 3.5 version in {@link #supportedScalaVersions()}
-     */
+    @Deprecated
     String scala35();
 
-    /**
-     * The Scala 3.6 version in {@link #supportedScalaVersions()}
-     */
+    @Deprecated
     String scala36();
 
-    /**
-     * The Scala 3 LTS version in {@link #supportedScalaVersions()}
-     */
+    @Deprecated
     String scala3LTS();
 
-    /**
-     * The Scala 3 Next version in {@link #supportedScalaVersions()}
-     */
+    @Deprecated
     String scala3Next();
 
-    /**
-     * Fetch JARs containing an implementation of {@link Scalafix} using Coursier and classload an instance of it via
-     * runtime reflection.
-     * <p>
-     * The custom classloader optionally provided with {@link ScalafixArguments#withToolClasspath} to compile and
-     * classload external rules must have the classloader of the returned instance as ancestor to share a common
-     * loaded instance of `scalafix-core`, and therefore have been compiled against the requested Scala version.
-     *
-     * @param requestedScalaVersion A full Scala version (i.e. "3.3.4") or a major.minor one (i.e. "3.3") to infer
-     *                              the major.minor Scala version that should be available in the classloader of the
-     *                              returned instance. To be able to run advanced semantic rules using the Scala
-     *                              Presentation Compiler such as ExplicitResultTypes, this must be source-compatible
-     *                              with the version that the target classpath is built with, as provided with
-     *                              {@link ScalafixArguments#withScalaVersion}.
-     * @return An implementation of the {@link Scalafix} interface.
-     * @throws ScalafixException in case of errors during artifact resolution/fetching.
-     */
+    @Deprecated
     static Scalafix fetchAndClassloadInstance(String requestedScalaVersion) throws ScalafixException {
         return fetchAndClassloadInstance(requestedScalaVersion, Repository.defaults());
     }
 
-    /**
-     * Fetch JARs containing an implementation of {@link Scalafix} from the provided repositories using Coursier and
-     * classload an instance of it via runtime reflection.
-     * <p>
-     * The custom classloader optionally provided with {@link ScalafixArguments#withToolClasspath} to compile and
-     * classload external rules must have the classloader of the returned instance as ancestor to share a common
-     * loaded instance of `scalafix-core`, and therefore have been compiled against the requested Scala version.
-     *
-     * @param requestedScalaVersion A full Scala version (i.e. "3.3.4") or a major.minor one (i.e. "3.3") to infer
-     *                              the major.minor Scala version that should be available in the classloader of the
-     *                              returned instance. To be able to run advanced semantic rules using the Scala
-     *                              Presentation Compiler such as ExplicitResultTypes, this must be source-compatible
-     *                              with the version that the target classpath is built with, as provided with
-     *                              {@link ScalafixArguments#withScalaVersion}.
-     * @param repositories       Maven/Ivy repositories to fetch the JARs from.
-     * @return An implementation of the {@link Scalafix} interface.
-     * @throws ScalafixException in case of errors during artifact resolution/fetching.
-     */
+    @Deprecated
     static Scalafix fetchAndClassloadInstance(String requestedScalaVersion, List<Repository> repositories)
             throws ScalafixException {
-        try {
-            Properties properties = new Properties();
-            InputStream stream = Scalafix.class.getClassLoader().getResourceAsStream(PROPERTIES_PATH);
-            properties.load(stream);
 
-            ScalafixProperties scalafixProperties = new ScalafixProperties(properties);
-            String scalafixVersion = scalafixProperties.scalafixVersion();
-            String scalaVersion = scalafixProperties.fullScalaVersion(requestedScalaVersion);
-
-            List<URL> jars = ScalafixCoursier.scalafixCliJars(repositories, scalafixVersion, scalaVersion);
-            ClassLoader parent = new ScalafixInterfacesClassloader(Scalafix.class.getClassLoader());
-            return classloadInstance(new URLClassLoader(jars.stream().toArray(URL[]::new), parent));
-        } catch (Exception e) {
-            System.err.println(
-                "Failed to load '" + PROPERTIES_PATH +  "' from local artifact, " +
-                "falling back to fetching the latest scalafix version...");
-
-            String latestVersion;
-            try {
-                latestVersion = ScalafixCoursier.latestScalafixProperties(repositories);
-            } catch (Exception ee) {
-                throw new ScalafixException( "Failed to lookup latest scalafix version", ee);
-            }   
-            return fetchAndClassloadInstance(latestVersion, requestedScalaVersion, repositories);
-        }
-    }
-
-    /**
-     * Fetch JARs containing an implementation of {@link Scalafix} using Coursier and classload an instance of it via
-     * runtime reflection.
-     * <p>
-     * The custom classloader optionally provided with {@link ScalafixArguments#withToolClasspath} to compile and
-     * classload external rules must have the classloader of the returned instance as ancestor to share a common
-     * loaded instance of `scalafix-core`, and therefore have been compiled against the requested Scala version.
-     *
-     * @param scalafixVersion    Fetch a specific, implementation of {@link Scalafix}. Must be binary-compatible.
-     * @param requestedScalaVersion A full Scala version (i.e. "3.3.4") or a major.minor one (i.e. "3.3") to infer
-     *                              the major.minor Scala version that should be available in the classloader of the
-     *                              returned instance. To be able to run advanced semantic rules using the Scala
-     *                              Presentation Compiler such as ExplicitResultTypes, this must be source-compatible
-     *                              with the version that the target classpath is built with, as provided with
-     *                              {@link ScalafixArguments#withScalaVersion}.
-     * @return An implementation of the {@link Scalafix} interface.
-     * @throws ScalafixException in case of errors during artifact resolution/fetching.
-     */
-    static Scalafix fetchAndClassloadInstance(String scalafixVersion,  String requestedScalaVersion )
-            throws ScalafixException {
-        return fetchAndClassloadInstance(scalafixVersion, requestedScalaVersion, Repository.defaults());
-    }
-
-    /**
-     * Fetch JARs containing an implementation of {@link Scalafix} from the provided repositories using Coursier and
-     * classload an instance of it via runtime reflection.
-     * <p>
-     * The custom classloader optionally provided with {@link ScalafixArguments#withToolClasspath} to compile and
-     * classload external rules must have the classloader of the returned instance as ancestor to share a common
-     * loaded instance of `scalafix-core`, and therefore have been compiled against the requested Scala version.
-     *
-     * @param scalafixVersion    Fetch a specific, implementation of {@link Scalafix}. Must be binary-compatible.
-     * @param requestedScalaVersion A full Scala version (i.e. "3.3.4") or a major.minor one (i.e. "3.3") to infer
-     *                              the major.minor Scala version that should be available in the classloader of the
-     *                              returned instance. To be able to run advanced semantic rules using the Scala
-     *                              Presentation Compiler such as ExplicitResultTypes, this must be source-compatible
-     *                              with the version that the target classpath is built with, as provided with
-     *                              {@link ScalafixArguments#withScalaVersion}.
-     * @param repositories       Maven/Ivy repositories to fetch the JARs from.
-     * @return An implementation of the {@link Scalafix} interface.
-     * @throws ScalafixException in case of errors during artifact resolution/fetching.
-     */
-    static Scalafix fetchAndClassloadInstance(
-        String scalafixVersion,
-        String requestedScalaVersion,
-        List<Repository> repositories
-    ) throws ScalafixException {
-        Properties properties = new Properties();
-        try {
-            List<URL> jars = ScalafixCoursier.scalafixPropertiesJars(repositories, scalafixVersion);
-            URLClassLoader classLoader =
-                new URLClassLoader(jars.stream().toArray(URL[]::new), null);
-            
-            InputStream stream = classLoader.getResourceAsStream(PROPERTIES_PATH);
-            properties.load(stream);
-        } catch (Exception e) {
-            throw new ScalafixException(
-                "Failed to fetch '" + PROPERTIES_PATH + "' for scalafix version " + scalafixVersion,
-                e);
-        }
-
-        ScalafixProperties scalafixProperties = new ScalafixProperties(properties);
+        ScalafixProperties scalafixProperties = new ScalafixProperties(Scalafix.class.getClassLoader());
+        String scalafixVersion = scalafixProperties.scalafixVersion();
         String scalaVersion = scalafixProperties.fullScalaVersion(requestedScalaVersion);
 
         List<URL> jars = ScalafixCoursier.scalafixCliJars(repositories, scalafixVersion, scalaVersion);
@@ -234,26 +78,7 @@ public interface Scalafix {
         return classloadInstance(new URLClassLoader(jars.stream().toArray(URL[]::new), parent));
     }
 
-    /**
-     * JVM runtime reflection method helper to classload an instance of {@link Scalafix}.
-     * <p>
-     * The custom classloader optionally provided with {@link ScalafixArguments#withToolClasspath} to compile and
-     * classload external rules must have the provided classloader as ancestor to share a common loaded instance
-     * of `scalafix-core`, and therefore must have been compiled against the same Scala binary version as
-     * the one in the classLoader provided here.
-     * <p>
-     * Unless you have an advanced use-case, prefer the high-level overloads that cannot cause runtime errors
-     * due to an invalid classloader hierarchy.
-     *
-     * @param classLoader Classloader containing the full Scalafix classpath, including the scalafix-cli module. To be
-     *                    able to run advanced semantic rules using the Scala Presentation Compiler such as
-     *                    ExplicitResultTypes, this Scala binary version in that classloader should match the one that
-     *                    the target classpath was built with, as provided with
-     *                    {@link ScalafixArguments#withScalaVersion}.
-     * @return An implementation of the {@link Scalafix} interface.
-     * @throws ScalafixException in case of errors during classloading, most likely caused
-     *                           by an incorrect classloader argument.
-     */
+    @Deprecated
     static Scalafix classloadInstance(ClassLoader classLoader) throws ScalafixException {
         try {
             Class<?> cls = classLoader.loadClass("scalafix.internal.interfaces.ScalafixImpl");
