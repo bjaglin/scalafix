@@ -498,7 +498,7 @@ object Args extends TPrintImplicits {
     @nowarn
     implicit val absolutePathDecoder: ConfDecoder[AbsolutePath] =
       ConfDecoder.stringConfDecoder.map(AbsolutePath(_))
-    generic.deriveDecoder(base)
+    ArgsCompanionDerivation.decoder(base)
   }
 
   implicit val charsetDecoder: ConfDecoder[Charset] =
@@ -537,7 +537,7 @@ object Args extends TPrintImplicits {
     ConfEncoder.StringEncoder.contramap(_.toString)
   implicit val toolboxEncoder: ConfEncoder[ScalafixToolbox] =
     ConfEncoder.StringEncoder.contramap(_ => "<toolbox>")
-  implicit val argsEncoder: ConfEncoder[Args] = generic.deriveEncoder
+  implicit val argsEncoder: ConfEncoder[Args] = ArgsCompanionDerivation.encoder
 
-  implicit val argsSurface: Surface[Args] = generic.deriveSurface
+  implicit val argsSurface: Surface[Args] = ArgsCompanionDerivation.surface
 }

@@ -11,16 +11,14 @@ inThisBuild(
 )
 
 Global / cancelable := true
-noPublishAndNoMima
-
-// force javac to fork by setting javaHome to get error messages during compilation,
-// see https://github.com/sbt/zinc/issues/520
-def inferJavaHome() = Some(file(sys.props("java.home")))
+LocalRootProject / mimaReportBinaryIssues := {}
+LocalRootProject / mimaPreviousArtifacts := Set.empty
+LocalRootProject / publish / skip := true
 
 lazy val interfaces = project
   .in(file("scalafix-interfaces"))
   .settings(
-    Compile / resourceGenerators += Def.task {
+    Compile / resourceGenerators += Def.task[Seq[File]] {
       val props = new java.util.Properties()
       props.put("scalafixVersion", version.value)
       props.put("scalafixStableVersion", stableVersion.value)
@@ -50,8 +48,6 @@ lazy val interfaces = project
       "8"
     ),
     (Compile / doc / javacOptions) := List("-Xdoclint:none"),
-    (Compile / javaHome) := inferJavaHome(),
-    (Compile / doc / javaHome) := inferJavaHome(),
     libraryDependencies += coursierInterfaces,
     moduleName := "scalafix-interfaces",
     crossPaths := false,
@@ -88,6 +84,26 @@ lazy val core = projectMatrix
   .jvmPlatform(coreScalaVersions)
   .enablePlugins(BuildInfoPlugin)
 
+def projectForScalaVersion(
+    matrix: ProjectMatrix,
+    scalaVersion: String
+): ProjectReference = {
+  val projects = matrix.allProjects().flatMap { case (project, axes) =>
+    axes
+      .collectFirst { case axis: VirtualAxis.ScalaVersionAxis => axis.value }
+      .map(_ -> project)
+  }
+  val project = projects
+    .find(_._1 == scalaVersion)
+    .orElse {
+      val binaryVersion = CrossVersion.binaryScalaVersion(scalaVersion)
+      projects.find(_._1.startsWith(binaryVersion))
+    }
+    .get
+    ._2
+  LocalProject(project.id)
+}
+
 // keep compiling core3 without exposing it to matrix projects, just
 // to make https://github.com/scalacenter/scalafix/issues/2041 easier
 lazy val core3 = project
@@ -98,7 +114,7 @@ lazy val core3 = project
     scalaVersion := scala33,
     libraryDependencies ++= Seq(
       googleDiff,
-      metaconfig
+      metaconfig cross CrossVersion.for3Use2_13
     ) ++ Seq(
       scalametaFor3Use2_13,
       semanticdbSharedFor3Use2_13
@@ -107,10 +123,12 @@ lazy val core3 = project
     }
   )
   .enablePlugins(BuildInfoPlugin)
+  .dependsOn(projectForScalaVersion(`compat-metaconfig-macros`, scala33))
 
 lazy val rules = projectMatrix
   .in(file("scalafix-rules"))
   .settings(
+    allowMismatchScala := isScala3.value,
     moduleName := "scalafix-rules",
     description := "Built-in Scalafix rules",
     isFullCrossVersion,
@@ -173,6 +191,7 @@ lazy val reflect3 = project
 lazy val cli = projectMatrix
   .in(file("scalafix-cli"))
   .settings(
+    allowMismatchScala := isScala3.value,
     moduleName := "scalafix-cli",
     isFullCrossVersion,
     libraryDependencies ++= Seq(
@@ -305,6 +324,7 @@ lazy val unit = projectMatrix
       }
     },
     buildInfoPackage := "scalafix.tests",
+    buildInfoObject := "UnitBuildInfo",
     buildInfoKeys := Seq[BuildInfoKey](
       "scalaVersion" -> scalaVersion.value
     )
@@ -335,11 +355,14 @@ lazy val integration = projectMatrix
     },
     buildInfoPackage := "scalafix.tests",
     buildInfoObject := "BuildInfo",
-    // create a local alias for input / Compile / fullClasspath at an
-    // arbitrary, unused scope to be able to reference it (as a TaskKey) in
-    // buildInfoKeys (since the macro only accepts TaskKeys)
-    buildInfoKeys / fullClasspath :=
-      resolve(input, Compile / fullClasspath).value,
+    // create a local alias for input / Compile / fullClasspath to be able to
+    // reference it (as a TaskKey) in buildInfoKeys (since the macro only
+    // accepts TaskKeys)
+    inputFullClasspath := Def.uncached {
+      val converter = fileConverter.value
+      resolve(input, Compile / fullClasspath).value
+        .map(ref => converter.toPath(ref.data).toFile())
+    },
     buildInfoKeys := Seq[BuildInfoKey](
       "scalametaVersion" -> scalametaV,
       "scalaVersion" -> scalaVersion.value,
@@ -353,7 +376,7 @@ lazy val integration = projectMatrix
         (Compile / sourceDirectory).value,
       "classDirectory" ->
         (Compile / classDirectory).value,
-      BuildInfoKey.map(buildInfoKeys / fullClasspath) { case (_, v) =>
+      BuildInfoKey.map(inputFullClasspath) { case (_, v) =>
         "inputClasspath" -> v
       },
       "inputSemanticClasspath" ->
@@ -363,7 +386,7 @@ lazy val integration = projectMatrix
       "outputSourceroot" ->
         resolve(output, Compile / sourceDirectory).value
     ),
-    Test / test := (Test / test)
+    Test / test := (Test / testFull)
       .dependsOn(
         (resolve(cli, publishLocalTransitive) +: cli.projectRefs
           // always publish Scala 3 artifacts to test Scala 3 minor version fallbacks
@@ -389,9 +412,10 @@ lazy val expect = projectMatrix
   .in(file("scalafix-tests/expect"))
   .settings(
     noPublishAndNoMima,
-    Test / resourceGenerators += Def.task {
+    Test / resourceGenerators += Def.task[Seq[File]] {
       // make sure the output can be compiled
       val _ = TargetAxis.resolve(output, Compile / compile).value
+      val converter = fileConverter.value
 
       // copy-pasted code from ScalafixTestkitPlugin to avoid cyclic dependencies between build and sbt-scalafix.
       val props = new java.util.Properties()
@@ -406,7 +430,7 @@ lazy val expect = projectMatrix
         TargetAxis
           .resolve(input, Compile / fullClasspath)
           .value
-          .map(_.data)
+          .map(ref => converter.toPath(ref.data).toFile())
       )
       put(
         "inputSourceDirectories",

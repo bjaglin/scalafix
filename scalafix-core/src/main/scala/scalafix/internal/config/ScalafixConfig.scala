@@ -3,7 +3,6 @@ package scalafix.internal.config
 import scala.meta._
 
 import metaconfig._
-import metaconfig.generic.Surface
 import scalafix.internal.config.ScalafixConfig._
 
 case class ScalafixConfig(
@@ -13,7 +12,7 @@ case class ScalafixConfig(
     scalaVersion: ScalaVersion = ScalaVersion.scala2,
     sourceScalaVersion: Option[ScalaVersion] = None,
     lint: LintConfig = LintConfig.default,
-    private val dialectOverride: Map[String, Boolean] = Map.empty
+    private[config] val dialectOverride: Map[String, Boolean] = Map.empty
 ) {
   val dialect: Dialect =
     dialectOverride.foldLeft(scalaVersion.dialect(sourceScalaVersion)) {
@@ -55,9 +54,9 @@ object ScalafixConfig {
     }
   lazy val default: ScalafixConfig = ScalafixConfig()
   def decoder(default: ScalafixConfig): ConfDecoder[ScalafixConfig] =
-    generic.deriveDecoder[ScalafixConfig](default)
-  implicit lazy val surface: Surface[ScalafixConfig] =
-    generic.deriveSurface[ScalafixConfig]
+    ConfigCompanionDerivation.scalafixConfigDecoder(default)
+  implicit lazy val surface: metaconfig.generic.Surface[ScalafixConfig] =
+    ConfigCompanionDerivation.scalafixConfigSurface
   implicit lazy val ScalafixConfigDecoder: ConfDecoder[ScalafixConfig] =
     decoder(default)
 

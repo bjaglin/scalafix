@@ -8,6 +8,15 @@ object Mima {
     Seq(
       ProblemFilters.exclude[Problem]("scalafix.internal.*"),
       ProblemFilters.exclude[Problem]("scala.meta.internal.*"),
+      // The vendored metaconfig macros moved from `metaconfig.generic` to
+      // `scalafix.internal.compat` to avoid clashing with metaconfig-core on
+      // the Scala 3 classpath (see `compat-metaconfig-macros`).
+      ProblemFilters.exclude[MissingClassProblem](
+        "metaconfig.generic.package$package"
+      ),
+      ProblemFilters.exclude[MissingClassProblem](
+        "metaconfig.generic.package$package$"
+      ),
       ProblemFilters.exclude[ReversedMissingMethodProblem]("scalafix.interfaces.Scalafix.scala310")
     )
   }

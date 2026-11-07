@@ -1,4 +1,4 @@
-package metaconfig.generic
+package scalafix.internal.compat
 
 import java.io.File
 import java.nio.file.Path
@@ -9,6 +9,7 @@ import scala.quoted.*
 
 import metaconfig.*
 import metaconfig.annotation.TabCompleteAsPath
+import metaconfig.generic.{Field, Settings, Surface}
 
 inline def deriveEncoder[T]: metaconfig.ConfEncoder[T] =
   ${ deriveEncoderImpl[T] }
@@ -27,7 +28,7 @@ inline def deriveSurface[T]: Surface[T] =
 inline def deriveCodec[T](inline default: T): metaconfig.ConfCodec[T] =
   ${ deriveCodecImpl[T]('default) }
 
-private[generic] def deriveCodecImpl[T: Type](default: Expr[T])(using Quotes) =
+private[compat] def deriveCodecImpl[T: Type](default: Expr[T])(using Quotes) =
   val encoder = deriveEncoderImpl[T]
   val decoder = deriveConfDecoderImpl[T](default)
 
@@ -38,7 +39,7 @@ private[generic] def deriveCodecImpl[T: Type](default: Expr[T])(using Quotes) =
     )
   }
 
-private[generic] def deriveEncoderImpl[T](using tp: Type[T])(using q: Quotes) =
+private[compat] def deriveEncoderImpl[T](using tp: Type[T])(using q: Quotes) =
   assumeCaseClass[T]
   Expr("Show: " + Type.show[T])
   val encoders = params[T]
@@ -58,7 +59,7 @@ private[generic] def deriveEncoderImpl[T](using tp: Type[T])(using q: Quotes) =
   }
 end deriveEncoderImpl
 
-private[generic] def deriveConfDecoderImpl[T: Type](default: Expr[T])(using
+private[compat] def deriveConfDecoderImpl[T: Type](default: Expr[T])(using
     q: Quotes
 ) =
   import q.reflect.*
@@ -127,7 +128,7 @@ private[generic] def deriveConfDecoderImpl[T: Type](default: Expr[T])(using
   end if
 end deriveConfDecoderImpl
 
-private[generic] def deriveConfDecoderExImpl[T: Type](default: Expr[T])(using
+private[compat] def deriveConfDecoderExImpl[T: Type](default: Expr[T])(using
     q: Quotes
 ) =
   import q.reflect.*
@@ -204,7 +205,7 @@ private[generic] def deriveConfDecoderExImpl[T: Type](default: Expr[T])(using
   end if
 end deriveConfDecoderExImpl
 
-private[generic] def deriveSurfaceImpl[T: Type](using q: Quotes) =
+private[compat] def deriveSurfaceImpl[T: Type](using q: Quotes) =
   import q.reflect.*
   val target = TypeRepr.of[T] match
     case at: AppliedType =>
@@ -297,13 +298,13 @@ private[generic] def deriveSurfaceImpl[T: Type](using q: Quotes) =
   '{ new Surface[T]($args, $classAnnotations) }
 end deriveSurfaceImpl
 
-private[generic] def assumeCaseClass[T: Type](using q: Quotes) =
+private[compat] def assumeCaseClass[T: Type](using q: Quotes) =
   import q.reflect.*
   val sym = TypeTree.of[T].symbol
   val isCaseClass = sym.isClassDef && sym.flags.is(Flags.Case)
   if !isCaseClass then report.error(s"${Type.show[T]} must be a case class")
 
-private[generic] def params[T: Type](using q: Quotes) =
+private[compat] def params[T: Type](using q: Quotes) =
   import q.reflect.*
   val fields = TypeTree.of[T].symbol.caseFields
   val encoder = TypeRepr.of[ConfEncoder]
@@ -325,7 +326,7 @@ private[generic] def params[T: Type](using q: Quotes) =
 
 end params
 
-private[generic] def paramNames[T: Type](using q: Quotes) =
+private[compat] def paramNames[T: Type](using q: Quotes) =
   import q.reflect.*
   val fields = TypeTree.of[T].symbol.caseFields.map(_.name)
 

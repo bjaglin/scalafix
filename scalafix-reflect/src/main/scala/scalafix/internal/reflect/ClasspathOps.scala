@@ -12,6 +12,7 @@ import java.nio.file.NoSuchFileException
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.nio.file.SimpleFileVisitor
+import java.nio.file.StandardCopyOption
 import java.nio.file.attribute.BasicFileAttributes
 
 import scala.jdk.CollectionConverters._
@@ -136,12 +137,66 @@ object ClasspathOps {
     new URLClassLoader(urls, parent)
   }
 
+  private val archiveAliases =
+    new java.util.concurrent.ConcurrentHashMap[Path, Path]
+
+  private lazy val archiveAliasDir: Path = {
+    val dir = Files.createTempDirectory("scalafix-classpath")
+    dir.toFile.deleteOnExit()
+    dir
+  }
+
+  /**
+   * sbt 2 exposes packaged artifacts from its content-addressed cache, whose
+   * file names carry no extension. Tools that classify classpath entries by
+   * extension (scalac, scala.meta's Classpath) then silently skip them, so
+   * expose such archives through a `.jar` alias.
+   */
+  private def archiveAlias(url: URL): URL =
+    if (url.getProtocol == "file") {
+      val path = Paths.get(url.toURI)
+      if (isExtensionlessArchive(path)) {
+        archiveAliases
+          .computeIfAbsent(path, p => createArchiveAlias(p))
+          .toUri
+          .toURL
+      } else {
+        url
+      }
+    } else {
+      url
+    }
+
+  private def isExtensionlessArchive(path: Path): Boolean =
+    Files.isRegularFile(path) &&
+      !path.getFileName.toString.endsWith(".jar") &&
+      isZipArchive(path)
+
+  private def isZipArchive(path: Path): Boolean = {
+    val in = Files.newInputStream(path)
+    try in.read() == 'P' && in.read() == 'K'
+    finally in.close()
+  }
+
+  private def createArchiveAlias(path: Path): Path = {
+    val alias = archiveAliasDir.resolve(path.getFileName.toString + ".jar")
+    if (!Files.exists(alias)) {
+      try Files.createLink(alias, path)
+      catch {
+        case _: IOException | _: UnsupportedOperationException =>
+          Files.copy(path, alias, StandardCopyOption.REPLACE_EXISTING)
+      }
+      alias.toFile.deleteOnExit()
+    }
+    alias
+  }
+
   /**
    * Utility to get SystemClassLoader/ClassLoader urls in java8 and java9+ Based
    * upon: https://gist.github.com/hengyunabc/644f8e84908b7b405c532a51d8e34ba9
    */
   def getURLs(classLoader: ClassLoader): Array[URL] = {
-    if (classLoader.isInstanceOf[URLClassLoader]) {
+    val urls: Array[URL] = if (classLoader.isInstanceOf[URLClassLoader]) {
       classLoader.asInstanceOf[URLClassLoader].getURLs()
       // java9+
     } else if (
@@ -206,5 +261,6 @@ object ClasspathOps {
     } else {
       Array.empty
     }
+    urls.map(archiveAlias)
   }
 }

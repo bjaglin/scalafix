@@ -11,7 +11,6 @@ import metaconfig.Configured
 import metaconfig.annotation.Description
 import metaconfig.annotation.ExampleValue
 import metaconfig.annotation.Hidden
-import metaconfig.generic
 import metaconfig.generic.Surface
 import scalafix.config.CustomMessage
 import scalafix.config.Regex
@@ -109,11 +108,9 @@ case class DisableSyntaxConfig(
 object DisableSyntaxConfig extends TPrintImplicits {
   val default: DisableSyntaxConfig = DisableSyntaxConfig()
   implicit val surface: Surface[DisableSyntaxConfig] =
-    generic.deriveSurface[DisableSyntaxConfig]
-  // Do not remove this import even if IntelliJ thinks it's unused
-  import scalafix.internal.config.ScalafixMetaconfigReaders._
+    ConfigCompanionDerivation.disableSyntaxSurface
   implicit val decoder: ConfDecoder[DisableSyntaxConfig] =
-    generic.deriveDecoder[DisableSyntaxConfig](default)
+    ConfigCompanionDerivation.disableSyntaxDecoder
 }
 
 object Keyword {

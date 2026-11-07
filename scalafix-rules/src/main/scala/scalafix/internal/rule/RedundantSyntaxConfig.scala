@@ -14,7 +14,7 @@ final case class RedundantSyntaxConfig(
 object RedundantSyntaxConfig {
   val default: RedundantSyntaxConfig = RedundantSyntaxConfig()
   implicit val reader: ConfDecoder[RedundantSyntaxConfig] =
-    generic.deriveDecoder[RedundantSyntaxConfig](default)
+    ConfigCompanionDerivation.redundantSyntaxDecoder
   implicit val surface: Surface[RedundantSyntaxConfig] =
-    generic.deriveSurface[RedundantSyntaxConfig]
+    ConfigCompanionDerivation.redundantSyntaxSurface
 }

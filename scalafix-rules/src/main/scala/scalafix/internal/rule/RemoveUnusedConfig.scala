@@ -3,7 +3,7 @@ package scalafix.internal.rule
 import metaconfig.ConfDecoder
 import metaconfig.ConfEncoder
 import metaconfig.annotation.Description
-import metaconfig.generic
+import metaconfig.generic.Surface
 
 case class RemoveUnusedConfig(
     @Description("Remove unused imports")
@@ -20,10 +20,10 @@ case class RemoveUnusedConfig(
 
 object RemoveUnusedConfig {
   val default: RemoveUnusedConfig = RemoveUnusedConfig()
-  implicit val surface: generic.Surface[RemoveUnusedConfig] =
-    generic.deriveSurface[RemoveUnusedConfig]
+  implicit val surface: Surface[RemoveUnusedConfig] =
+    ConfigCompanionDerivation.removeUnusedSurface
   implicit val decoder: ConfDecoder[RemoveUnusedConfig] =
-    generic.deriveDecoder[RemoveUnusedConfig](default)
+    ConfigCompanionDerivation.removeUnusedDecoder
   implicit val encoder: ConfEncoder[RemoveUnusedConfig] =
-    generic.deriveEncoder[RemoveUnusedConfig]
+    ConfigCompanionDerivation.removeUnusedEncoder
 }

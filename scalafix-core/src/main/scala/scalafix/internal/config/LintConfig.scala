@@ -1,7 +1,6 @@
 package scalafix.internal.config
 
 import metaconfig.ConfDecoder
-import metaconfig.generic
 import metaconfig.generic.Surface
 import scalafix.lint.LintSeverity
 
@@ -21,8 +20,9 @@ case class LintConfig(
 }
 
 object LintConfig {
-  implicit val surface: Surface[LintConfig] = generic.deriveSurface[LintConfig]
+  implicit val surface: Surface[LintConfig] =
+    ConfigCompanionDerivation.lintSurface
   lazy val default: LintConfig = LintConfig()
   implicit val decoder: ConfDecoder[LintConfig] =
-    generic.deriveDecoder[LintConfig](default)
+    ConfigCompanionDerivation.lintDecoder(default)
 }

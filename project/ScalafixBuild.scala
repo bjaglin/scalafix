@@ -1,16 +1,15 @@
-import Dependencies._
-import sbt._
+import Dependencies.*
+import sbt.*
 import sbt.Classpaths
-import sbt.Keys._
-import sbt.internal.ProjectMatrix
-import sbt.nio.Keys._
+import sbt.Keys.*
+import sbt.nio.Keys.*
 import sbt.plugins.JvmPlugin
-import com.typesafe.tools.mima.plugin.MimaPlugin.autoImport._
-import sbtbuildinfo.BuildInfoKey
-import sbtbuildinfo.BuildInfoPlugin.autoImport._
+import com.typesafe.tools.mima.plugin.MimaPlugin.autoImport.*
+import sbtbuildinfo.*
+import sbtbuildinfo.BuildInfoPlugin.autoImport.{given, *}
 import sbtversionpolicy.SbtVersionPolicyPlugin
-import sbtversionpolicy.SbtVersionPolicyPlugin.autoImport._
-import scalafix.sbt.ScalafixPlugin.autoImport._
+import sbtversionpolicy.SbtVersionPolicyPlugin.autoImport.*
+import scalafix.sbt.ScalafixPlugin.autoImport.*
 import com.github.sbt.sbtghpages.GhpagesKeys
 import scala.util.Properties
 import scala.util.Try
@@ -74,8 +73,13 @@ object ScalafixBuild extends AutoPlugin with GhpagesKeys {
           )
         }
 
+    // Publishing to Ivy is a side effect; a cache hit would skip the publish.
+    @transient
     lazy val publishLocalTransitive =
       taskKey[Unit]("Run publishLocal on this project and its dependencies")
+    lazy val inputFullClasspath = taskKey[Seq[File]](
+      "Alias for the input project's fullClasspath, for use in buildInfoKeys"
+    )
     lazy val isFullCrossVersion = Seq(
       crossVersion := CrossVersion.full
     )
@@ -139,7 +143,7 @@ object ScalafixBuild extends AutoPlugin with GhpagesKeys {
       else Nil
     )
 
-    lazy val buildInfoSettingsForCore: Seq[Def.Setting[_]] = Seq(
+    lazy val buildInfoSettingsForCore: Seq[Def.Setting[?]] = Seq(
       buildInfoKeys := Seq[BuildInfoKey](
         name,
         version,
@@ -166,7 +170,7 @@ object ScalafixBuild extends AutoPlugin with GhpagesKeys {
       buildInfoObject := "Versions"
     )
 
-    lazy val buildInfoSettingsForRules: Seq[Def.Setting[_]] = Seq(
+    lazy val buildInfoSettingsForRules: Seq[Def.Setting[?]] = Seq(
       buildInfoObject := "RulesBuildInfo"
     )
 
@@ -182,7 +186,7 @@ object ScalafixBuild extends AutoPlugin with GhpagesKeys {
     ): Def.Initialize[T] =
       Def.settingDyn {
         val project = lookup(matrix, scalaVersion.value)
-        Def.setting((project / key).value)
+        Def.setting((LocalProject(project.id) / key).value)
       }
 
     /**
@@ -194,14 +198,14 @@ object ScalafixBuild extends AutoPlugin with GhpagesKeys {
     ): Def.Initialize[Task[T]] =
       Def.taskDyn {
         val project = lookup(matrix, scalaVersion.value)
-        Def.task((project / key).value)
+        Def.task((LocalProject(project.id) / key).value)
       }
 
   }
 
   import autoImport._
 
-  override def globalSettings: Seq[Def.Setting[_]] = List(
+  override def globalSettings: Seq[Def.Setting[?]] = List(
     excludeLintKeys += scalafixConfig, // defined on projects where ScalafixPlugin is disabled
     stableVersion := (ThisBuild / version).value.replaceFirst("\\+.*", ""),
     Test / testOptions += Tests.Argument("-oD"),
@@ -240,11 +244,11 @@ object ScalafixBuild extends AutoPlugin with GhpagesKeys {
     },
     Test / publishArtifact := false,
     licenses := Seq(
-      "Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0")
+      License("Apache-2.0", uri("http://www.apache.org/licenses/LICENSE-2.0"))
     ),
-    homepage := Some(url("https://github.com/scalacenter/scalafix")),
+    homepage := Some(uri("https://github.com/scalacenter/scalafix")),
     autoAPIMappings := true,
-    apiURL := Some(url("https://scalacenter.github.io/scalafix/")),
+    apiURL := Some(uri("https://scalacenter.github.io/scalafix/")),
     organization := orgScalaCenter,
     developers ++= Developers.list
   )
@@ -254,7 +258,7 @@ object ScalafixBuild extends AutoPlugin with GhpagesKeys {
     "3.10.0" -> None
   )
 
-  override def buildSettings: Seq[Setting[_]] = List(
+  override def buildSettings: Seq[Setting[?]] = List(
     // lz4-java was relocated from org.lz4 to at.yawk.lz4 in the 3.3.9 compiler
     versionPolicyIgnored ++= Seq(
       "org.lz4" % "lz4-java"
@@ -281,12 +285,14 @@ object ScalafixBuild extends AutoPlugin with GhpagesKeys {
     )
   )
 
-  override def projectSettings: Seq[Def.Setting[_]] = List(
+  override def projectSettings: Seq[Def.Setting[?]] = List(
     // Prevent issues with scalatest serialization
     Test / classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.Flat,
-    Test / testWindows := (Test / testOnly)
-      .toTask(" -- -l scalafix.internal.tests.utils.SkipWindows")
-      .value,
+    Test / testWindows := Def.uncached {
+      val _ = (Test / testOnly)
+        .toTask(" -- -l scalafix.internal.tests.utils.SkipWindows")
+        .value
+    },
     // avoid "missing dependency" on artifacts with full scala version when bumping scala
     versionPolicyIgnored ++= {
       PreviousScalaVersion.values.flatten.toSeq.flatMap { previous =>
@@ -341,11 +347,12 @@ object ScalafixBuild extends AutoPlugin with GhpagesKeys {
     // Don't package sources & docs when publishing locally as it adds a significant
     // overhead when testing because of publishLocalTransitive. Tweaking publishArtifact
     // would more readable, but it would also affect remote (sonatype) publishing.
-    publishLocal / packagedArtifacts :=
-      Classpaths.packaged(Seq(Compile / packageBin)).value,
+    publishLocal / packagedArtifacts := Def.uncached(
+      Classpaths.packaged(Seq(Compile / packageBin)).value
+    ),
     scmInfo := Some(
       ScmInfo(
-        url("https://github.com/scalacenter/scalafix"),
+        uri("https://github.com/scalacenter/scalafix"),
         "scm:git:git@github.com:scalacenter/scalafix.git"
       )
     ),
@@ -363,7 +370,7 @@ object ScalafixBuild extends AutoPlugin with GhpagesKeys {
           crossVersion.value,
           previousScalaFullV,
           scalaBinaryVersion.value
-        ).getOrElse(identity[String] _)(moduleName.value)
+        ).getOrElse(identity[String])(moduleName.value)
         Set(
           organizationName.value % previousScalaVCrossName % stableVersion.value
         )

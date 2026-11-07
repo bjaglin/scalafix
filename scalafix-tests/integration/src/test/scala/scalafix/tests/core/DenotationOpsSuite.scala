@@ -20,13 +20,23 @@ class DenotationOpsSuite extends BaseSemanticSuite("DenotationOpsTest") {
         for {
           symbol <- t.symbol
           resultType <- symbol.resultType
-        } yield assert(resultType isEqual Type.Name("List[String]"))
+        } yield assert(
+          resultType isEqual Type.Apply(
+            Type.Name("List"),
+            List(Type.Name("String"))
+          )
+        )
 
       case t: Defn.Def if t.name.value == "m" =>
         for {
           symbol <- t.symbol
           resultType <- symbol.resultType
-        } yield assert(resultType isEqual Type.Name("List[String]"))
+        } yield assert(
+          resultType isEqual Type.Apply(
+            Type.Name("List"),
+            List(Type.Name("String"))
+          )
+        )
     }
   }
 

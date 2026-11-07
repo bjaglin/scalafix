@@ -111,11 +111,11 @@ object OrganizeImportsConfig {
   val default: OrganizeImportsConfig = OrganizeImportsConfig()
 
   implicit val surface: generic.Surface[OrganizeImportsConfig] =
-    generic.deriveSurface
+    ConfigCompanionDerivation.organizeImportsSurface
   implicit val encoder: ConfEncoder[OrganizeImportsConfig] =
-    generic.deriveEncoder[OrganizeImportsConfig]
+    ConfigCompanionDerivation.organizeImportsEncoder
   implicit val decoder: ConfDecoderEx[OrganizeImportsConfig] = {
-    val baseDecoder = generic.deriveDecoderEx(default).noTypos
+    val baseDecoder = ConfigCompanionDerivation.organizeImportsDecoder.noTypos
     baseDecoder.withSectionRenames(
       annotation.SectionRename { case Conf.Bool(flag) =>
         if (flag)
@@ -127,5 +127,4 @@ object OrganizeImportsConfig {
 
   def getCodecFrom[T](values: T*): ConfCodecEx[T] =
     ConfCodecEx.oneOf(values.map(x => sourcecode.Text(x, x.toString)): _*)
-
 }

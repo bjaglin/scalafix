@@ -53,9 +53,9 @@ case class ExplicitResultTypesConfig(
 object ExplicitResultTypesConfig {
   val default: ExplicitResultTypesConfig = ExplicitResultTypesConfig()
   implicit val reader: ConfDecoder[ExplicitResultTypesConfig] =
-    generic.deriveDecoder[ExplicitResultTypesConfig](default)
+    ConfigCompanionDerivation.explicitResultTypesDecoder
   implicit val surface: Surface[ExplicitResultTypesConfig] =
-    generic.deriveSurface[ExplicitResultTypesConfig]
+    ConfigCompanionDerivation.explicitResultTypesSurface
 }
 
 case class SimpleDefinitions(kinds: Set[String]) {
